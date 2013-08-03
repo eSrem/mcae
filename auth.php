@@ -7,8 +7,9 @@ require_once($CFG->dirroot.'/user/profile/lib.php');
 
 /**
  * @package    auth
- * @subpackage mcae
+ * @subpackage enrolmentor
  * @copyright  2011 Andrew "Kama" (kamasutra12@yandex.ru)
+ * @copyright  2013 Virgil Ashruf (v.ashruf@avetica.nl)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class auth_plugin_mcae extends auth_plugin_base {

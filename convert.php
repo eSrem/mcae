@@ -4,8 +4,9 @@
  * Autoenrol cohort authentication plugin version information
  *
  * @package    auth
- * @subpackage mcae
+ * @subpackage enrolmentor
  * @copyright  2011 Andrew "Kama" (kamasutra12@yandex.ru) 
+ * @copyright  2013 Virgil Ashruf (v.ashruf@avetica.nl)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 

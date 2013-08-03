@@ -4,13 +4,14 @@
  * Autoenrol cohort authentication plugin version information
  *
  * @package    auth
- * @subpackage mcae
+ * @subpackage enrolmentor
  * @copyright  2011 Andrew "Kama" (kamasutra12@yandex.ru) 
+ * @copyright  2013 Virgil Ashruf (v.ashruf@avetica.nl)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-$string['auth_mcaedescription'] = 'This method provides the way to automathic enrol user into cohort.';
-$string['pluginname'] = 'Autoenrol cohort';
+$string['auth_mcaedescription'] = 'This method auto enrols parents based on a profile field';
+$string['pluginname'] = 'Autoenrol Parents';
 $string['auth_fieldlocks_help'] = ' ';
 
 $string['auth_mainrule_fld'] = 'Main template. 1 template per line.';
