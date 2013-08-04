@@ -1,25 +1,26 @@
 <?php
-defined('MOODLE_INTERNAL') || die();
-
-require_once($CFG->libdir.'/authlib.php');
-require_once($CFG->dirroot.'/cohort/lib.php');
-require_once($CFG->dirroot.'/user/profile/lib.php');
-
 /**
+ * Auto enrol mentors, parents or managers based on a custom profile field.
+ *
  * @package    auth
  * @subpackage enrolmentor
- * @copyright  2011 Andrew "Kama" (kamasutra12@yandex.ru)
  * @copyright  2013 Virgil Ashruf (v.ashruf@avetica.nl)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class auth_plugin_mcae extends auth_plugin_base {
+
+defined('MOODLE_INTERNAL') || die();
+
+require_once($CFG->libdir.'/authlib.php');
+require_once($CFG->dirroot.'/user/profile/lib.php');
+
+class auth_plugin_enrolmentor extends auth_plugin_base {
 
     /**
      * Constructor.
      */
-    function auth_plugin_mcae() {
-        $this->authtype = 'mcae';
-        $this->config = get_config('auth_mcae');
+    function auth_plugin_enrolmentor() {
+        $this->authtype = 'enrolmentor';
+        $this->config = get_config('auth_enrolmentor');
     }
 
     /**
@@ -156,12 +157,12 @@ class auth_plugin_mcae extends auth_plugin_base {
 	    $config->enableunenrol = 0;
 	}
         // save settings
-        set_config('mainrule_fld', $config->mainrule_fld, 'auth_mcae');
-        set_config('secondrule_fld', $config->secondrule_fld, 'auth_mcae');
-        set_config('replace_arr', $config->replace_arr, 'auth_mcae');
-        set_config('delim', $config->delim, 'auth_mcae');
-        set_config('donttouchusers', $config->donttouchusers, 'auth_mcae');
-        set_config('enableunenrol', $config->enableunenrol, 'auth_mcae');
+        set_config('mainrule_fld', $config->mainrule_fld, 'auth_enrolmentor');
+        set_config('secondrule_fld', $config->secondrule_fld, 'auth_enrolmentor');
+        set_config('replace_arr', $config->replace_arr, 'auth_enrolmentor');
+        set_config('delim', $config->delim, 'auth_enrolmentor');
+        set_config('donttouchusers', $config->donttouchusers, 'auth_enrolmentor');
+        set_config('enableunenrol', $config->enableunenrol, 'auth_enrolmentor');
 
         return true;
     }
@@ -176,9 +177,10 @@ class auth_plugin_mcae extends auth_plugin_base {
      * @return boolean true if updated or update ignored; false if error
      *
      */
-//    function user_update($olduser, $newuser) {
-//        return true;
-//  }
+    function user_update($olduser, $newuser) {
+        return true;
+    }
+    
     /**
      * Post authentication hook.
      * This method is called from authenticate_user_login() for all enabled auth plugins.
@@ -188,172 +190,35 @@ class auth_plugin_mcae extends auth_plugin_base {
      * @param string $password plain text password (with system magic quotes)
      */
     function user_authenticated_hook(&$user, $username, $password) {
-	global $DB, $SESSION;
+		global $DB, $SESSION;
 
-        $context = get_context_instance(CONTEXT_SYSTEM);
-        $uid = $user->id;
-        // Ignore users from don't_touch list
-        $ignore = explode(",",$this->config->donttouchusers);
-
-        if (!empty($ignore) AND array_search($username, $ignore) !== false) {
-            $SESSION->mcautoenrolled = TRUE;
-            return true;
-        };
-
-        // Ignore guests
-        if ($uid < 2) {
-            $SESSION->mcautoenrolled = TRUE;
-            return true;
-        };
-
-// ********************** Get COHORTS data
-        $clause = array('contextid'=>$context->id);
-        if ($this->config->enableunenrol == 1) {
-            $clause['component'] = 'auth_mcae';
-        };
-
-        $cohorts = $DB->get_records('cohort', $clause);
-
-        $cohorts_list = array();
-        foreach($cohorts as $cohort) {
-            $cid = $cohort->id;
-	    $cname = format_string($cohort->name);
-            $cohorts_list[$cid] = $cname;
-        }
-
-        // Get advanced user data
-        profile_load_data($user);
-        $user_profile_data = array();
-        foreach ($user as $key => $val){
-            if (is_array($val)) {
-                $text = (isset($val['text'])) ? $val['text'] : '';
-            } else {
-                $text = $val;
-            };
-
-            // Raw custom profile fields
-            $fld_key = preg_replace('/profile_field_/', 'profile_field_raw_', $key);
-            $user_profile_data["%$fld_key"] = ($text == '') ? format_string($this->config->secondrule_fld) : format_string($text);
-        };
-
-        // Custom profile field values
-        foreach ($user->profile as $key => $val) {
-            $user_profile_data["%profile_field_$key"] = ($val == '') ? format_string($this->config->secondrule_fld) : format_string($val);
-        };
-
-        // Additional values for email
-        list($email_username,$email_domain) = explode("@", $user_profile_data['%email']);
-        $user_profile_data['%email_username'] = $email_username;
-        $user_profile_data['%email_domain'] = $email_domain;
-
-        // Delimiter
-        $delimiter = $this->config->delim;
-        $delim = strtr($delimiter, array('CR+LF' => chr(13).chr(10), 'CR' => chr(13), 'LF' => chr(10)));
-
-        // Calculate a cohort names for user
-        $replacements_tpl = $this->config->replace_arr;
-
-        $replacements = array();
-        if (!empty($replacements_tpl)) {
-            $replacements_pre = explode($delim, $replacements_tpl);
-            foreach ($replacements_pre as $rap) {
-                list($key, $val) = explode("|", $rap);
-                $replacements[$key] = $val;
-            };
-        };
-
-        // Generate cohorts array
-        $main_rule = $this->config->mainrule_fld;
-
-        $templates_tpl = array();
-        $templates = array();
-        if (!empty($main_rule)) {
-            $templates_tpl = explode($delim, $main_rule);
-        } else {
-            $SESSION->mcautoenrolled = TRUE;
-            return; //Empty mainrule
-        };
-
-
-        // Split!
-        foreach ($templates_tpl as $item) {
-            if (preg_match('/(?<full>%split\((?<fld>%\w*)\|(?<delim>.{1,5})\))/', $item, $split_params)) {
-                $splitted = explode($split_params['delim'], $user_profile_data[$split_params['fld']]);
-                foreach($splitted as $key => $val) {
-                    $user_profile_data[$split_params['fld']."_$key"] = $val;
-                    $templates[] = strtr($item, array("${split_params['full']}" => "${split_params['fld']}_$key"));
-                }
-            } else {
-                $templates[] = $item;
-            }
-        }
-
-        $processed = array();
-        $log_new = array();
-        $log_unenrolled = array();
-        $log_exist = array();
-        $log_add = array();
-
-        foreach ($templates as $cohort) {
-            $cohortname = strtr($cohort, $user_profile_data);
-            $cohortname = (!empty($replacements)) ? strtr($cohortname, $replacements) : $cohortname;
-
-            if ($cohortname == '') {
-                continue; // We don't want an empty cohort name
-            };
-
-            $cid = array_search($cohortname, $cohorts_list);
-            if ($cid !== false) {
-
-                if (!$DB->record_exists('cohort_members', array('cohortid'=>$cid, 'userid'=>$user->id))) {
-                    cohort_add_member($cid, $user->id);
-                    $log_add[] = $cid;
-                } else {
-                    $log_exist[] = $cid;
-                };
-            } else {
-                // Cohort not exist so create a new one
-                $newcohort = new stdClass();
-                $newcohort->name = $cohortname;
-                $newcohort->description = "created ". date("d-m-Y");
-                $newcohort->contextid = $context->id;
-                if ($this->config->enableunenrol == 1) {
-                    $newcohort->component = "auth_mcae";
-                };
-                $cid = cohort_add_cohort($newcohort);
-                cohort_add_member($cid, $user->id);
-                $log_new[] = $cid;
-            };
-            $processed[] = $cid;
-        };
-        $SESSION->mcautoenrolled = TRUE;
-
-        //Unenrol user
-        if ($this->config->enableunenrol == 1) {
-        //List of cohorts where this user enrolled
-            $sql = "SELECT c.id AS cid FROM {cohort} c JOIN {cohort_members} cm ON cm.cohortid = c.id WHERE c.component = 'auth_mcae' AND cm.userid = $uid";
-            $enrolledcohorts = $DB->get_records_sql($sql);
-
-            foreach ($enrolledcohorts as $ec) {
-                if(array_search($ec->cid, $processed) === false) {
-                    cohort_remove_member($ec->cid, $uid);
-                    $log_unenrolled[] = $ec->cid;
-                };
-            };
-        };
-        // LOG
-        if ($log_exist) {
-          add_to_log(SITEID, 'user', 'already exist in cohorts', "view.php?id=$user->id&course=".SITEID, implode(', ', $log_exist), 0, $user->id);
-        }
-        if ($log_add) {
-          add_to_log(SITEID, 'user', 'added to cohorts', "view.php?id=$user->id&course=".SITEID, implode(', ', $log_add), 0, $user->id);
-        }
-        if ($log_new) {
-          add_to_log(SITEID, 'user', 'created cohorts', "view.php?id=$user->id&course=".SITEID, implode(', ', $log_new), 0, $user->id);
-        }
-        if ($log_unenrolled) {
-          add_to_log(SITEID, 'user', 'removed from cohorts', "view.php?id=$user->id&course=".SITEID, implode(', ', $log_unenrolled), 0, $user->id);
-        }
-
+		//Get the roleid we're going to assign.
+		$roleid = $this->config->role;
+			
+		//Get all the user ids that we're a parent of.
+		$profile_field = $this->config->profile_field;
+		
+		switch($this->config->compare) {
+			case 'username':
+				$sql = "SELECT userid FROM mdl_user_info_data
+				WHERE Data = '{$username}'";
+				break;
+			case 'id':
+				$sql = "SELECT userid FROM mdl_user_info_data
+				WHERE Data = '{$user->id}'";
+				break;
+			case 'email':
+				$sql = "SELECT userid FROM mdl_user_info_data
+				WHERE Data = '{$user->email}'";
+				break;
+		}		
+		
+		$parents = $DB->get_records_sql($sql);
+		
+		$arraykeys = array_keys($parents);
+		foreach($arraykeys as $arraykey) {			
+			// TODO: Uncomment the line below to enable enrolment.
+			//role_assign($roleid, $parents[$arraykey]->userid, context_user::instance($parents[$arraykey]->userid)->id, 'auth_enrolmentor', 0, '');
+		}		
     }
 }

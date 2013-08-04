@@ -1,11 +1,9 @@
 <?php
-
 /**
- * Adds this plugin to the admin menu.
+ * Auto enrol mentors, parents or managers based on a custom profile field.
  *
  * @package    auth
  * @subpackage enrolmentor
- * @copyright  2011 Andrew "Kama" (kamasutra12@yandex.ru)
  * @copyright  2013 Virgil Ashruf (v.ashruf@avetica.nl)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -16,53 +14,35 @@ global $USER;
 
 require_once($CFG->dirroot.'/user/profile/lib.php');
 
-if ($hassiteconfig) { // needs this condition or there is error on login page
-    $ADMIN->add('accounts', new admin_externalpage('cohorttoolmcae',
-            get_string('auth_cohorttoolmcae', 'auth_mcae'),
-            new moodle_url('/auth/mcae/convert.php')));
-
-    $ADMIN->add('accounts', new admin_externalpage('cohortviewmcae',
-            get_string('auth_cohortviewmcae', 'auth_mcae'),
-            new moodle_url('/auth/mcae/view.php')));
-
-}
-
 if ($ADMIN->fulltree) {
-    $settings->add(new admin_setting_configtextarea('auth_mcae/mainrule_fld', get_string('auth_mainrule_fld', 'auth_mcae'), '', ''));
 
-// Profile field helper
-    $fldlist = array();
-    $usr_helper = $USER;
+	// Get all roles and put their id's nicely into the configuration.
+	$roles = get_all_roles();
+	$i = 1;
+	foreach($roles as $role) {
+		$rolename[$i] = $role->shortname;
+		$roleid[$i] = $role->id;
+		$i++;
+	}
+	$rolenames = array_combine($roleid, $rolename);
+	
+	// NOTICE: This code is in place so that we can easily enable access to default profile fields.
+	// Get all default profile fields that can be filled with information about the users mentor.
+	// $auth = 'enrolmentor';
+	// $authplugin = get_auth_plugin($auth);
+	// $authfields = $authplugin->userfields;
+	// $profilefields = array_combine($authfields, $authfields);	
+	
+	$sql = "SELECT shortname FROM mdl_user_info_field";
+	$customfields_raw = $DB->get_records_sql($sql);
+	$customfields_med = array_keys($customfields_raw);
+	$customfields = array_combine($customfields_med, $customfields_med);
+	
+	//$allfields = array_merge($profilefields, $customfields);
+		
+	$settings->add(new admin_setting_configselect('auth_enrolmentor/role', get_string('enrolmentor_settingrole', 'auth_enrolmentor'), get_string('enrolmentor_settingrolehelp', 'auth_enrolmentor'), '', $rolenames));
+	$settings->add(new admin_setting_configselect('auth_enrolmentor/compare', get_string('enrolmentor_settingcompare', 'auth_enrolmentor'), get_string('enrolmentor_settingcomparehelp', 'auth_enrolmentor'), 'username', array('username'=>'username','email'=>'email','id'=>'id')));
 
-    profile_load_data($usr_helper);
-    foreach ($usr_helper as $key => $val){
-        $fld = preg_replace('/profile_field_/', 'profile_field_raw_', $key);
-        if (is_array($val)) {
-            if (isset($val['text'])) {
-                $fldlist[] = "<span title=\"%$fld\">%$fld</span>";
-            };
-        } else {
-            $fldlist[] = "<span title=\"%$fld\">%$fld</span>";
-        };
-    }; 
-
-    // Custom profile field values
-    foreach ($usr_helper->profile as $key => $val) {
-        $fldlist[] = "<span title=\"%profile_field_$key\">%profile_field_$key</span>";
-    };
-
-    // Additional values for email
-    $fldlist[] = "<span title=\"%email_username\">%email_username</span>";
-    $fldlist[] = "<span title=\"%email_domain\">%email_domain</span>";
-
-    sort($fldlist);
-    $help_text = implode(', ', $fldlist);
-
-    $settings->add(new admin_setting_heading('auth_mcae_profile_help', get_string('auth_profile_help', 'auth_mcae'), $help_text));
-
-    $settings->add(new admin_setting_configselect('auth_mcae/delim', get_string('auth_delim', 'auth_mcae'), get_string('auth_delim_help', 'auth_mcae'), 'CR+LF', array('CR+LF'=>'CR+LF', 'CR'=>'CR', 'LF'=>'LF')));
-    $settings->add(new admin_setting_configtext('auth_mcae/secondrule_fld', get_string('auth_secondrule_fld', 'auth_mcae'),'', 'n/a'));
-    $settings->add(new admin_setting_configtextarea('auth_mcae/replace_arr', get_string('auth_replace_arr', 'auth_mcae'), '', ''));
-    $settings->add(new admin_setting_configtextarea('auth_mcae/donttouchusers', get_string('auth_donttouchusers', 'auth_mcae'), '', ''));
-    $settings->add(new admin_setting_configcheckbox('auth_mcae/enableunenrol', get_string('auth_enableunenrol', 'auth_mcae'), '', 0));
+	// Currently the setting below is useless, because in our SQL we select based on Data = XYZ 
+	//$settings->add(new admin_setting_configselect('auth_enrolmentor/profile_field', get_string('enrolmentor_settingprofile_field', 'auth_enrolmentor'), get_string('enrolmentor_settingprofile_fieldhelp', 'auth_enrolmentor'), '', $customfields));
 }
